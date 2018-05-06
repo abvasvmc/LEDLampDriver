@@ -1,0 +1,25 @@
+#! /bin/sh
+ # /etc/init.d/lanternstartup
+ 
+ #! /bin/sh
+ # /etc/init.d/customstartup
+ 
+ case "$1" in
+   start)
+     #/usr/local/bin/ts7800ctl --redledon
+     ## If you are launching a daemon or other long running processes
+     ## this should be started with
+     # nohup /usr/local/bin/yourdaemon &
+     nohup /root/lantern/lighting &> /dev/null &
+     ;;
+   stop)
+     #/usr/local/bin/ts7800ctl --redledoff
+     ;;
+   *)
+     echo "Usage: customstartup start|stop" >&2
+     exit 3
+     ;;
+ esac
+ 
+ exit 0
+ 
