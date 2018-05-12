@@ -63,13 +63,39 @@ unsigned int get(unsigned int node)
 		return 0;
 }
 
-void rotate(bool init, bool direction)
+void rotate(int seed, bool direction)
 {
-	unsigned int main, children;
+	unsigned int main, children, overflow;
 	main = AVAL & MAIN_MASK; //current value of main nodes
 	children = AVAL & CHILD_MASK; //current value of child nodes
 
-	if(init)
+	switch(seed)
+	{
+		case 1:
+			children = R | G << 3 | B << 6 | R << 9 | G << 12 | B << 15;
+			break;
+		case 2:
+			children = (R|G) | (G|B) << 3 | (B|R) << 6 | (R|G) << 9 | (G|B) << 12 | (B|R) << 15;
+			break;
+		case 3:
+			children = (R|B) | (G|R) << 3 | (B|G) << 6 | (R|B) << 9 | (G|R) << 12 | (B|G) << 15;
+			break;
+		default:
+			if(direction)
+			{
+				overflow = children & LS_CHILD_MASK; //value of the least significant child node that will overflow
+				children = ((children >> 3) & CHILD_MASK) | overflow << 15; //shift the child nodes to right and insert the overflew child to the most significant node
+			}
+			else
+			{
+				overflow = children & MS_CHILD_MASK; //value of the least significant child node that will overflow
+				children = ((children << 3) & CHILD_MASK) | overflow >> 15; //shift the child nodes to left and insert the overflew child to the least significant node
+			}
+			break;
+	}
+
+/*
+	if(seed)
 	{
 		children = R | G << 3 | B << 6 | R << 9 | G << 12 | B << 15;
 	}
@@ -87,9 +113,11 @@ void rotate(bool init, bool direction)
 			children = ((children << 3) & CHILD_MASK) | overflow >> 15; //shift the child nodes to left and insert the overflew child to the least significant node
 		}
 	}
-
+*/
 	AVAL = main | children; //set the new pattern to AVAL
 }
+
+
 
 void lift(bool init, bool direction)
 {
@@ -170,7 +198,7 @@ void echo()
 	}
 	fprintf(stderr, "\n");
 
-	usleep(100000);
+	//usleep(100000);
 }
 
 int main(int argc, char **argv)
@@ -207,6 +235,15 @@ int main(int argc, char **argv)
 		lift(false, false);
 		echo();
 	}
+
+	fprintf(stderr, "Rotate Right with two colours\n");
+	rotate(2, true);
+	for(int i=0; i<10; ++i)
+	{
+		rotate(false, true);
+		echo();
+	}
+
 
 	return 0;
 }
