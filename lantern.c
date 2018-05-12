@@ -103,16 +103,18 @@ void lift(bool init, bool direction)
 	}
 	else
 	{
-		unsigned int overflow;
+		unsigned int carryover;
 		if(direction)
 		{
-			overflow = main & LS_MAIN_MASK; //value of the least significant main node that will overflow
-			main = ((main >> 3) & MAIN_MASK) | overflow << 9; //shift the main nodes to right and insert the overflew main-node to the most significant node
+			main = ((main >> 3) & MAIN_MASK); //shift the main nodes to right
+			carryover = main & LS_MAIN_MASK; //value of the new least significant main node
+			main = main | carryover << 9; //insert the carry-over main-node to the most significant node
 		}
 		else
 		{
-			overflow = main & MS_MAIN_MASK; //value of the most significant main node that will overflow
-			main = ((main << 3) & MAIN_MASK) | overflow >> 9; //shift the main nodes to left and insert the overflew main-node to the least significant node
+			main = ((main << 3) & MAIN_MASK); //shift the main nodes to left
+			carryover = main & MS_MAIN_MASK; //value of the new most significant main node
+			main = main | carryover >> 9; //insert the carry-over main-node to the most significant node
 		}
 	}
 
@@ -167,6 +169,8 @@ void echo()
 			fprintf(stderr, "   Main: ");
 	}
 	fprintf(stderr, "\n");
+
+	usleep(100000);
 }
 
 int main(int argc, char **argv)
