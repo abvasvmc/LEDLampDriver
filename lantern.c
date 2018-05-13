@@ -137,7 +137,44 @@ void floodleft(bool init)
 	AVAL = main | children; //set the new pattern to AVAL
 }
 
+void floodright(bool init)
+{
+	unsigned int main, children, overflow;
+	main = AVAL & MAIN_MASK; //current value of main nodes
+	children = AVAL & CHILD_MASK; //current value of child nodes
 
+	if(init)
+	{
+		children = R << 15;
+	}
+	else if(((children & MS_CHILD_MASK) >> 15) == (children & LS_CHILD_MASK)) // completed a full cycle
+	{
+		unsigned int nextColor = 0;
+		switch(children & LS_CHILD_MASK)
+		{
+			case R:
+				nextColor = G;
+				break;
+			case G:
+				nextColor = B;
+				break;
+
+			case B:
+			default:
+				nextColor = R;
+				break;
+		}
+
+		children  = (children & ~MS_CHILD_MASK) | (nextColor << 15);
+	}
+	else
+	{
+		unsigned int msColor = children & MS_CHILD_MASK;
+		children = (children >> 3) | msColor;
+	}
+
+	AVAL = main | children; //set the new pattern to AVAL
+}
 
 void lift(bool init, bool direction)
 {
@@ -229,10 +266,13 @@ int main(int argc, char **argv)
 {
 	int i;
 
+/*
 	rotate(true, true);
 	lift(true, true);
 
 	echo();
+*/
+
 /*
 	fprintf(stderr, "Rotate Right\n");
 	for(i=0; i<10; ++i)
@@ -250,14 +290,31 @@ int main(int argc, char **argv)
 	}
 */
 
-	fprintf(stderr, "Flood Left\n");
-	floodleft(true);
-	echo();
-	for(i=0; i<10; )
+	if(argc == 1)
 	{
-		floodleft(false);
+		fprintf(stderr, "Flood Left\n");
+		floodleft(true);
 		echo();
+		for(i=0; i<10; )
+		{
+			floodleft(false);
+			echo();
+		}
+
 	}
+	else
+	{
+		fprintf(stderr, "Flood Right\n");
+		floodright(true);
+		echo();
+		for(i=0; i<10; )
+		{
+			floodright(false);
+			echo();
+		}
+	}
+
+	
 
 	fprintf(stderr, "Up\n");
 	for(i=0; i<10; ++i)
