@@ -73,6 +73,7 @@ void rotate(int seed, bool direction)
 	{
 		case 1:
 			children = R | G << 3 | B << 6 | R << 9 | G << 12 | B << 15;
+			//children = R | G << 3 | B << 6 ;//| R << 9 | G << 12 | B << 15;
 			break;
 		case 2:
 			children = (R|G) | (G|B) << 3 | (B|R) << 6 | (R|G) << 9 | (G|B) << 12 | (B|R) << 15;
@@ -94,26 +95,45 @@ void rotate(int seed, bool direction)
 			break;
 	}
 
-/*
-	if(seed)
+	AVAL = main | children; //set the new pattern to AVAL
+}
+
+void floodleft(bool init)
+{
+	unsigned int main, children, overflow;
+	main = AVAL & MAIN_MASK; //current value of main nodes
+	children = AVAL & CHILD_MASK; //current value of child nodes
+
+	if(init)
 	{
-		children = R | G << 3 | B << 6 | R << 9 | G << 12 | B << 15;
+		children = R;
+	}
+	else if(((children & MS_CHILD_MASK) >> 15) == (children & LS_CHILD_MASK)) // completed a full cycle
+	{
+		unsigned int nextColor = 0;
+		switch(children & LS_CHILD_MASK)
+		{
+			case R:
+				nextColor = G;
+				break;
+			case G:
+				nextColor = B;
+				break;
+
+			case B:
+			default:
+				nextColor = R;
+				break;
+		}
+
+		children  = (children & ~LS_CHILD_MASK) | nextColor;
 	}
 	else
 	{
-		unsigned int overflow;
-		if(direction)
-		{
-			overflow = children & LS_CHILD_MASK; //value of the least significant child node that will overflow
-			children = ((children >> 3) & CHILD_MASK) | overflow << 15; //shift the child nodes to right and insert the overflew child to the most significant node
-		}
-		else
-		{
-			overflow = children & MS_CHILD_MASK; //value of the least significant child node that will overflow
-			children = ((children << 3) & CHILD_MASK) | overflow >> 15; //shift the child nodes to left and insert the overflew child to the least significant node
-		}
+		unsigned int lsColor = children & LS_CHILD_MASK;
+		children = (children << 3) | lsColor;
 	}
-*/
+
 	AVAL = main | children; //set the new pattern to AVAL
 }
 
@@ -182,10 +202,14 @@ int writeport(off_t addr, unsigned int value)
 
 void echo()
 {
+	off_t port = 0xE8000020;
+	int i;
+
+	writeport(port, AVAL);
 	unsigned int node;
 
 	fprintf(stderr, "Children: ");
-	for(int i=0; i<10; ++i)
+	for(i=0; i<10; ++i)
 	{
 		node = get(i);
 		fprintf(stderr, "%c", (node & R) ? 'R' : '.');
@@ -198,39 +222,52 @@ void echo()
 	}
 	fprintf(stderr, "\n");
 
-	//usleep(100000);
+	usleep(1000000);
 }
 
 int main(int argc, char **argv)
 {
+	int i;
+
 	rotate(true, true);
 	lift(true, true);
 
 	echo();
-
+/*
 	fprintf(stderr, "Rotate Right\n");
-	for(int i=0; i<10; ++i)
+	for(i=0; i<10; ++i)
 	{
 		rotate(false, true);
 		echo();
 	}
-
+*/
+/*
 	fprintf(stderr, "Rotate Left\n");
-	for(int i=0; i<10; ++i)
+	for(i=0; i<10; )
 	{
 		rotate(false, false);
 		echo();
 	}
+*/
+
+	fprintf(stderr, "Flood Left\n");
+	floodleft(true);
+	echo();
+	for(i=0; i<10; )
+	{
+		floodleft(false);
+		echo();
+	}
 
 	fprintf(stderr, "Up\n");
-	for(int i=0; i<10; ++i)
+	for(i=0; i<10; ++i)
 	{
 		lift(false, true);
 		echo();
 	}
 
 	fprintf(stderr, "Down\n");
-	for(int i=0; i<10; ++i)
+	for(i=0; i<10; ++i)
 	{
 		lift(false, false);
 		echo();
@@ -238,7 +275,7 @@ int main(int argc, char **argv)
 
 	fprintf(stderr, "Rotate Right with two colours\n");
 	rotate(2, true);
-	for(int i=0; i<10; ++i)
+	for(i=0; i<10; ++i)
 	{
 		rotate(false, true);
 		echo();
