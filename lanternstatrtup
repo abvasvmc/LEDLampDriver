@@ -10,7 +10,7 @@
      ## If you are launching a daemon or other long running processes
      ## this should be started with
      # nohup /usr/local/bin/yourdaemon &
-     nohup /root/lantern/lighting &> /dev/null &
+     nohup /root/lantern/lantern &> /dev/null &
      ;;
    stop)
      #/usr/local/bin/ts7800ctl --redledoff

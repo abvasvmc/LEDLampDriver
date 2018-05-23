@@ -35,6 +35,7 @@ typedef int bool;
 #define B 0x4
 
 unsigned int AVAL;
+float DELAY1 = 1; //1 second
 
 void set(unsigned int node, unsigned int rgb)
 {
@@ -259,7 +260,7 @@ void echo()
 	}
 	fprintf(stderr, "\n");
 
-	usleep(1000000);
+	usleep(DELAY1 * 1000000);
 }
 
 int main(int argc, char **argv)
@@ -304,39 +305,97 @@ int main(int argc, char **argv)
 	}
 	else
 	{
-		fprintf(stderr, "Flood Right\n");
-		floodright(true);
-		echo();
-		for(i=0; i<10; )
+		int mode = atoi(argv[1]);
+		int n = 1;
+		int dela
+		if(argc > 2)
+			n = atoi(argv[2]);
+
+		if(argc > 3)
+			DELAY1 = atof(argv[3]);
+
+		for(;;)
 		{
-			floodright(false);
-			echo();
+			switch(mode)
+			{
+				case 1: 
+				fprintf(stderr, "Left\n");
+				floodleft(true);
+				echo();
+				for(i=0; i<n; ++i)
+				{
+					floodleft(false);
+					echo();
+				}
+				++mode;
+				break;
+
+				case 2:
+				fprintf(stderr, "Right\n");
+				floodright(true);
+				echo();
+				for(i=0; i<n; ++i)
+				{
+					floodright(false);
+					echo();
+				}
+				++mode;
+				break;
+
+				case 3:
+				fprintf(stderr, "Up\n");
+				lift(true, true);
+				echo();
+				for(i=0; i<n; ++i)
+				{
+					lift(false, true);
+					echo();
+				}
+				++mode;
+				break;
+
+				case 4:
+				fprintf(stderr, "Down\n");
+				lift(true, false);
+				echo();
+				for(i=0; i<n; ++i)
+				{
+					lift(false, false);
+					echo();
+				}
+				++mode;
+				break;
+
+				case 5:
+				fprintf(stderr, "Down\n");
+				lift(true, false);
+				echo();
+				for(i=0; i<n; ++i)
+				{
+					lift(false, false);
+					echo();
+				}
+				++mode;
+				break;
+
+				case 6:
+				fprintf(stderr, "Rotate Right with two colours\n");
+				rotate(2, true);
+				for(i=0; i<10; ++i)
+				{
+					rotate(false, true);
+					echo();
+				}
+				break;
+
+				default:
+				mode = 1;
+				break;
+			}
 		}
 	}
 
-	
 
-	fprintf(stderr, "Up\n");
-	for(i=0; i<10; ++i)
-	{
-		lift(false, true);
-		echo();
-	}
-
-	fprintf(stderr, "Down\n");
-	for(i=0; i<10; ++i)
-	{
-		lift(false, false);
-		echo();
-	}
-
-	fprintf(stderr, "Rotate Right with two colours\n");
-	rotate(2, true);
-	for(i=0; i<10; ++i)
-	{
-		rotate(false, true);
-		echo();
-	}
 
 
 	return 0;
