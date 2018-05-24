@@ -3,6 +3,7 @@
 #include <sys/mman.h>
 #include <stdio.h>
 #include <fcntl.h>
+#include <stdlib.h>
 
 typedef int bool;
 #define true 1
@@ -34,8 +35,9 @@ typedef int bool;
 #define G 0x2
 #define B 0x4
 
+
 unsigned int AVAL;
-float DELAY1 = 1; //1 second
+float DELAY1 = 0.5; //seconds
 
 void set(unsigned int node, unsigned int rgb)
 {
@@ -99,7 +101,7 @@ void rotate(int seed, bool direction)
 	AVAL = main | children; //set the new pattern to AVAL
 }
 
-void floodleft(bool init)
+void floodleft(bool init, bool autoSwitch)
 {
 	unsigned int main, children, overflow;
 	main = AVAL & MAIN_MASK; //current value of main nodes
@@ -109,7 +111,7 @@ void floodleft(bool init)
 	{
 		children = R;
 	}
-	else if(((children & MS_CHILD_MASK) >> 15) == (children & LS_CHILD_MASK)) // completed a full cycle
+	else if(autoSwitch && (((children & MS_CHILD_MASK) >> 15) == (children & LS_CHILD_MASK))) // completed a full cycle
 	{
 		unsigned int nextColor = 0;
 		switch(children & LS_CHILD_MASK)
@@ -133,12 +135,13 @@ void floodleft(bool init)
 	{
 		unsigned int lsColor = children & LS_CHILD_MASK;
 		children = (children << 3) | lsColor;
+		children = children & CHILD_MASK;
 	}
 
 	AVAL = main | children; //set the new pattern to AVAL
 }
 
-void floodright(bool init)
+void floodright(bool init, bool autoSwitch)
 {
 	unsigned int main, children, overflow;
 	main = AVAL & MAIN_MASK; //current value of main nodes
@@ -148,7 +151,7 @@ void floodright(bool init)
 	{
 		children = R << 15;
 	}
-	else if(((children & MS_CHILD_MASK) >> 15) == (children & LS_CHILD_MASK)) // completed a full cycle
+	else if(autoSwitch && (((children & MS_CHILD_MASK) >> 15) == (children & LS_CHILD_MASK))) // completed a full cycle
 	{
 		unsigned int nextColor = 0;
 		switch(children & LS_CHILD_MASK)
@@ -176,8 +179,48 @@ void floodright(bool init)
 
 	AVAL = main | children; //set the new pattern to AVAL
 }
+/*
+void floodup(int initColour, bool autoSwitch)
+{
+	unsigned int main, children, overflow;
+	main = AVAL & MAIN_MASK; //current value of main nodes
+	children = AVAL & CHILD_MASK; //current value of child nodes
 
-void lift(bool init, bool direction)
+	if(initColour >= 0)
+	{
+		children = initColour;
+	}
+	else if(autoSwitch && (((children & MS_CHILD_MASK) >> 15) == (children & LS_CHILD_MASK))) // completed a full cycle
+	{
+		unsigned int nextColor = 0;
+		switch(children & LS_CHILD_MASK)
+		{
+			case R:
+				nextColor = G;
+				break;
+			case G:
+				nextColor = B;
+				break;
+
+			case B:
+			default:
+				nextColor = R;
+				break;
+		}
+
+		children  = (children & ~LS_CHILD_MASK) | nextColor;
+	}
+	else
+	{
+		unsigned int lsColor = children & LS_CHILD_MASK;
+		children = (children << 3) | lsColor;
+		children = children & CHILD_MASK;
+	}
+
+	AVAL = main | children; //set the new pattern to AVAL
+}
+*/
+void lift(bool init, bool directionUp)
 {
 	unsigned int main, children;
 	main = AVAL & MAIN_MASK; //current value of main nodes
@@ -190,7 +233,7 @@ void lift(bool init, bool direction)
 	else
 	{
 		unsigned int carryover;
-		if(direction)
+		if(directionUp)
 		{
 			main = ((main >> 3) & MAIN_MASK); //shift the main nodes to right
 			carryover = main & LS_MAIN_MASK; //value of the new least significant main node
@@ -246,26 +289,26 @@ void echo()
 	writeport(port, AVAL);
 	unsigned int node;
 
-	fprintf(stderr, "Children: ");
+	fprintf(stdout, "Children: ");
 	for(i=0; i<10; ++i)
 	{
 		node = get(i);
-		fprintf(stderr, "%c", (node & R) ? 'R' : '.');
-		fprintf(stderr, "%c", (node & G) ? 'G' : '.');
-		fprintf(stderr, "%c", (node & B) ? 'B' : '.');
+		fprintf(stdout, "%c", (node & R) ? 'R' : '.');
+		fprintf(stdout, "%c", (node & G) ? 'G' : '.');
+		fprintf(stdout, "%c", (node & B) ? 'B' : '.');
 
-		fprintf(stderr, " | ");
+		fprintf(stdout, " | ");
 		if(i == 5)
-			fprintf(stderr, "   Main: ");
+			fprintf(stdout, "   Main: ");
 	}
-	fprintf(stderr, "\n");
+	fprintf(stdout, "\n");
 
 	usleep(DELAY1 * 1000000);
 }
 
 int main(int argc, char **argv)
 {
-	int i;
+	unsigned int i;
 
 /*
 	rotate(true, true);
@@ -293,105 +336,67 @@ int main(int argc, char **argv)
 
 	if(argc == 1)
 	{
-		fprintf(stderr, "Flood Left\n");
-		floodleft(true);
-		echo();
-		for(i=0; i<10; )
+		//DELAY1 = 0.2; // seconds
+		for(i = 0; ; ++i)
 		{
-			floodleft(false);
+			fprintf(stderr, "Flood Left\n");
+			floodleft(true, false);
 			echo();
+			for(i=0; i<10; )
+			{
+				floodleft(false, false);
+				echo();
+			}
 		}
 
 	}
 	else
 	{
 		int mode = atoi(argv[1]);
-		int n = 1;
-		int dela
-		if(argc > 2)
-			n = atoi(argv[2]);
 
-		if(argc > 3)
-			DELAY1 = atof(argv[3]);
+		if(argc > 2)
+			DELAY1 = atof(argv[2]);
+
+		bool init = true;
 
 		for(;;)
 		{
 			switch(mode)
 			{
 				case 1: 
-				fprintf(stderr, "Left\n");
-				floodleft(true);
+				fprintf(stdout, "Left\n");
+				floodleft(init, false);
 				echo();
-				for(i=0; i<n; ++i)
-				{
-					floodleft(false);
-					echo();
-				}
-				++mode;
 				break;
 
 				case 2:
-				fprintf(stderr, "Right\n");
-				floodright(true);
+				fprintf(stdout, "Right\n");
+				floodright(init, false);
 				echo();
-				for(i=0; i<n; ++i)
-				{
-					floodright(false);
-					echo();
-				}
-				++mode;
 				break;
 
 				case 3:
-				fprintf(stderr, "Up\n");
-				lift(true, true);
+				fprintf(stdout, "Up\n");
+				lift(init, true);
 				echo();
-				for(i=0; i<n; ++i)
-				{
-					lift(false, true);
-					echo();
-				}
-				++mode;
 				break;
 
 				case 4:
-				fprintf(stderr, "Down\n");
-				lift(true, false);
+				fprintf(stdout, "Down\n");
+				lift(init, false);
 				echo();
-				for(i=0; i<n; ++i)
-				{
-					lift(false, false);
-					echo();
-				}
-				++mode;
 				break;
 
 				case 5:
-				fprintf(stderr, "Down\n");
-				lift(true, false);
-				echo();
-				for(i=0; i<n; ++i)
-				{
-					lift(false, false);
-					echo();
-				}
-				++mode;
-				break;
-
-				case 6:
-				fprintf(stderr, "Rotate Right with two colours\n");
+				fprintf(stdout, "Rotate Right with two colours\n");
 				rotate(2, true);
-				for(i=0; i<10; ++i)
-				{
-					rotate(false, true);
-					echo();
-				}
 				break;
 
 				default:
-				mode = 1;
 				break;
 			}
+
+			init = false;
 		}
 	}
 
