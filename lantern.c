@@ -66,6 +66,43 @@ unsigned int get(unsigned int node)
 		return 0;
 }
 
+unsigned int getNextColour(unsigned int currentColour)
+{
+	unsigned int nextColor = 0;
+	switch(currentColour)
+	{
+		case R:
+			nextColor = G;
+			break;
+		case G:
+			nextColor = B;
+			break;
+		case B:
+			nextColor = R|G;
+			break;
+		case R|G:
+			nextColor = G|B;
+			break;
+		case G|B:
+			nextColor = B|R;
+			break;
+		case B|R:
+			nextColor = R|G|B;
+			break;
+		case R|G|B:
+			nextColor = 0;
+			break;
+		case 0:
+			nextColor = R;
+			break;
+			
+		default:
+			break;
+	}
+
+	return nextColor;
+}
+
 void rotate(int seed, bool direction)
 {
 	unsigned int main, children, overflow;
@@ -101,7 +138,7 @@ void rotate(int seed, bool direction)
 	AVAL = main | children; //set the new pattern to AVAL
 }
 
-void floodleft(bool init, bool autoSwitch)
+void floodleft(bool init, int initColour, bool autoSwitch)
 {
 	unsigned int main, children, overflow;
 	main = AVAL & MAIN_MASK; //current value of main nodes
@@ -109,25 +146,11 @@ void floodleft(bool init, bool autoSwitch)
 
 	if(init)
 	{
-		children = R;
+		children = initColour;
 	}
 	else if(autoSwitch && (((children & MS_CHILD_MASK) >> 15) == (children & LS_CHILD_MASK))) // completed a full cycle
 	{
-		unsigned int nextColor = 0;
-		switch(children & LS_CHILD_MASK)
-		{
-			case R:
-				nextColor = G;
-				break;
-			case G:
-				nextColor = B;
-				break;
-
-			case B:
-			default:
-				nextColor = R;
-				break;
-		}
+		unsigned int nextColor = getNextColour(children & LS_CHILD_MASK);
 
 		children  = (children & ~LS_CHILD_MASK) | nextColor;
 	}
@@ -141,7 +164,7 @@ void floodleft(bool init, bool autoSwitch)
 	AVAL = main | children; //set the new pattern to AVAL
 }
 
-void floodright(bool init, bool autoSwitch)
+void floodright(bool init, int initColour, bool autoSwitch)
 {
 	unsigned int main, children, overflow;
 	main = AVAL & MAIN_MASK; //current value of main nodes
@@ -149,26 +172,11 @@ void floodright(bool init, bool autoSwitch)
 
 	if(init)
 	{
-		children = R << 15;
+		children = initColour << 15;
 	}
 	else if(autoSwitch && (((children & MS_CHILD_MASK) >> 15) == (children & LS_CHILD_MASK))) // completed a full cycle
 	{
-		unsigned int nextColor = 0;
-		switch(children & LS_CHILD_MASK)
-		{
-			case R:
-				nextColor = G;
-				break;
-			case G:
-				nextColor = B;
-				break;
-
-			case B:
-			default:
-				nextColor = R;
-				break;
-		}
-
+		unsigned int nextColor = getNextColour(children & LS_CHILD_MASK);
 		children  = (children & ~MS_CHILD_MASK) | (nextColor << 15);
 	}
 	else
@@ -179,6 +187,7 @@ void floodright(bool init, bool autoSwitch)
 
 	AVAL = main | children; //set the new pattern to AVAL
 }
+
 /*
 void floodup(int initColour, bool autoSwitch)
 {
@@ -340,11 +349,11 @@ int main(int argc, char **argv)
 		for(i = 0; ; ++i)
 		{
 			fprintf(stderr, "Flood Left\n");
-			floodleft(true, false);
+			floodleft(true, R, false);
 			echo();
 			for(i=0; i<10; )
 			{
-				floodleft(false, false);
+				floodleft(false, R, false);
 				echo();
 			}
 		}
@@ -353,9 +362,15 @@ int main(int argc, char **argv)
 	else
 	{
 		int mode = atoi(argv[1]);
+		int autoSwitch = false;
+		int colour = R;
 
 		if(argc > 2)
-			DELAY1 = atof(argv[2]);
+			colour = atoi(argv[2]);
+
+		if(argc > 3)
+			autoSwitch = atoi(argv[3]) > 0;
+
 
 		bool init = true;
 
@@ -365,13 +380,13 @@ int main(int argc, char **argv)
 			{
 				case 1: 
 				fprintf(stdout, "Left\n");
-				floodleft(init, false);
+				floodleft(init, colour, autoSwitch);
 				echo();
 				break;
 
-				case 2:
-				fprintf(stdout, "Right\n");
-				floodright(init, false);
+				case 2: 
+				fprintf(stdout, "Left\n");
+				floodright(init, colour, autoSwitch);
 				echo();
 				break;
 
