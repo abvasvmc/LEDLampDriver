@@ -39,6 +39,8 @@ typedef int bool;
 unsigned int AVAL;
 float DELAY1 = 0.5; //seconds
 
+void echo(float delay);
+
 void set(unsigned int node, unsigned int rgb)
 {
 	unsigned int mask, pattern, shift;
@@ -90,7 +92,7 @@ unsigned int getNextColour(unsigned int currentColour)
 			nextColor = R|G|B;
 			break;
 		case R|G|B:
-			nextColor = 0;
+			nextColor = R;
 			break;
 		case 0:
 			nextColor = R;
@@ -188,47 +190,99 @@ void floodright(bool init, int initColour, bool autoSwitch)
 	AVAL = main | children; //set the new pattern to AVAL
 }
 
-/*
-void floodup(int initColour, bool autoSwitch)
+void floodlift(bool init, int initColour, bool autoSwitch, bool directionUp)
 {
-	unsigned int main, children, overflow;
+	unsigned int main, children, filler;
 	main = AVAL & MAIN_MASK; //current value of main nodes
 	children = AVAL & CHILD_MASK; //current value of child nodes
 
-	if(initColour >= 0)
+	if(init)
 	{
-		children = initColour;
+		if(directionUp)
+			main = initColour << 18;
+		else
+			main = initColour << 27;
 	}
-	else if(autoSwitch && (((children & MS_CHILD_MASK) >> 15) == (children & LS_CHILD_MASK))) // completed a full cycle
+	else if(autoSwitch && ((main & MS_MAIN_MASK) >> 9) ==  (main & LS_MAIN_MASK)) // completed a full cycle
 	{
-		unsigned int nextColor = 0;
-		switch(children & LS_CHILD_MASK)
+		filler = getNextColour((main & LS_MAIN_MASK) >> 18);
+		if(directionUp)
 		{
-			case R:
-				nextColor = G;
-				break;
-			case G:
-				nextColor = B;
-				break;
-
-			case B:
-			default:
-				nextColor = R;
-				break;
+			main = ((main << 3) & MAIN_MASK); //shift the main nodes to left
+			main = main | (filler << 18); // restore least significant main node
 		}
-
-		children  = (children & ~LS_CHILD_MASK) | nextColor;
+		else
+		{
+			main = ((main >> 3) & MAIN_MASK); //shift the main nodes to right
+			main = main | (filler << 27); // restore most significant main node
+		}
 	}
 	else
 	{
-		unsigned int lsColor = children & LS_CHILD_MASK;
-		children = (children << 3) | lsColor;
-		children = children & CHILD_MASK;
+		if(directionUp)
+		{
+			filler = main & LS_MAIN_MASK; //the least significant main node
+			main = ((main << 3) & MAIN_MASK); //shift the main nodes to left
+			main = main | filler; // restore least significant main node
+		}
+		else
+		{
+			filler = main & MS_MAIN_MASK; //the most significant main node
+			main = ((main >> 3) & MAIN_MASK); //shift the main nodes to right
+			main = main | filler; // restore most significant main node
+		}
 	}
 
 	AVAL = main | children; //set the new pattern to AVAL
 }
-*/
+
+void flashMain(float period, int iterations)
+{
+	unsigned int main = AVAL & MAIN_MASK; //current value of main nodes
+	unsigned int children = AVAL & CHILD_MASK; //current value of child nodes
+	int i = 0;
+
+	for(i = 0; i<iterations; ++i)
+	{
+		AVAL = children; //clear all main nodes
+		echo(period);
+
+		AVAL = main | children; //restore all main nodes
+		echo(period);
+	}
+}
+
+void flashChildren(float period, int iterations)
+{
+	unsigned int main = AVAL & MAIN_MASK; //current value of main nodes
+	unsigned int children = AVAL & CHILD_MASK; //current value of child nodes
+	int i = 0;
+
+	for(i = 0; i<iterations; ++i)
+	{
+		AVAL = main; //clear all child nodes
+		echo(period);
+
+		AVAL = main | children; //restore all child nodes
+		echo(period);
+	}
+}
+
+void flashAll(float period, int iterations)
+{
+	unsigned int colour = AVAL; //current value of all nodes
+	int i = 0;
+
+	for(i = 0; i<iterations; ++i)
+	{
+		AVAL = 0; //clear all nodes
+		echo(period);
+
+		AVAL = colour; //restore all  nodes
+		echo(period);
+	}
+}
+
 void lift(bool init, bool directionUp)
 {
 	unsigned int main, children;
@@ -290,10 +344,19 @@ int writeport(off_t addr, unsigned int value)
   return 0;
 }
 
-void echo()
+void echo(float delay)
 {
 	off_t port = 0xE8000020;
 	int i;
+
+	//The following port configuration does not need to be done on evey echo. However
+	//there is no harm in doing it and it takes care of spurious port reconfigurations happen
+	//during system restart.
+	//BEGIN port configuration
+	writeport(0xe8000030, 0); //set row A to all GPIO mode
+	writeport(0xE8000010, 0x0); //set all port A pins to be low
+	//END port configuration
+
 
 	writeport(port, AVAL);
 	unsigned int node;
@@ -312,18 +375,71 @@ void echo()
 	}
 	fprintf(stdout, "\n");
 
-	usleep(DELAY1 * 1000000);
+	if(delay < 0)
+		delay = DELAY1;
+
+	usleep(delay * 1000000);
+}
+
+void setMain(unsigned int rgb)
+{
+	int i;
+	for(i=6; i<10; ++i)
+		set(i, rgb);
+}
+
+
+void setChildren(unsigned int rgb)
+{
+	int i;
+	for(i=0; i<6; ++i)
+		set(i, rgb);
+}
+
+void setAll(unsigned int rgb)
+{
+	int i;
+	for(i=0; i<10; ++i)
+		set(i, rgb);
+}
+
+void flashMainColourSwitch()
+{
+	int i = 0;
+	float timing = -1;
+	for(i=0, timing=-1; i<4; ++i, timing=0.5)
+	{
+		setMain(R);
+		flashMain(timing, 1);
+		setMain(G);
+		flashMain(timing, 1);
+		if(i<3)
+		{
+			setMain(B);
+			flashMain(timing, 1);
+		}
+	}
 }
 
 int main(int argc, char **argv)
 {
 	unsigned int i;
 
+	//set row A to all GPIO mode
+	writeport(0xe8000030, 0);
+
+	//set row A to all input
+	writeport(0xe8000020, 0xffffffff);
+
+	//set all port A pins to be low
+	writeport(0xE8000010, 0x0);
+	
+
 /*
 	rotate(true, true);
 	lift(true, true);
 
-	echo();
+	echo(-1);
 */
 
 /*
@@ -331,7 +447,7 @@ int main(int argc, char **argv)
 	for(i=0; i<10; ++i)
 	{
 		rotate(false, true);
-		echo();
+		echo(-1);
 	}
 */
 /*
@@ -339,23 +455,141 @@ int main(int argc, char **argv)
 	for(i=0; i<10; )
 	{
 		rotate(false, false);
-		echo();
+		echo(-1);
 	}
 */
 
 	if(argc == 1)
 	{
-		//DELAY1 = 0.2; // seconds
-		for(i = 0; ; ++i)
+		unsigned int colour = 0;
+		unsigned int t = 0;
+		unsigned int cCounter = 0;
+		unsigned int mCounter = 0;
+		unsigned int mPeriod = 60; //seconds
+		float timing = -1;
+
+		DELAY1 = 2; //seconds
+		AVAL = 0;
+		echo(-1);
+
+		for(;;)
 		{
-			fprintf(stderr, "Flood Left\n");
-			floodleft(true, R, false);
-			echo();
-			for(i=0; i<10; )
+			fprintf(stdout, "Flood Lift UP\n");
+			floodlift(true, R, true, true);
+			echo(-1);
+
+			for(i=0; i<11; ++i)
 			{
-				floodleft(false, R, false);
-				echo();
+				floodlift(false, R, true, true);
+
+				if(i < 3)
+					echo(-1);
+				else
+					echo(0.5);
 			}
+
+
+			//fprintf(stdout, "Flash Main\n");
+			//flashMain(1, 4);
+			//flashMain(0.5, 4);
+			
+			flashMainColourSwitch();
+			//fprintf(stdout, "Switching colours in the main and flashing\n");
+			//for(i=0, timing=-1; i<4; ++i, timing=0.5)
+			//{
+			//	setMain(R);
+			//	flashMain(timing, 1);
+			//	setMain(G);
+			//	flashMain(timing, 1);
+			//	setMain(B);
+			//	flashMain(timing, 1);
+			//}
+
+			fprintf(stdout, "Flood Left\n");
+			for(i=0; i<60; ++i)
+			{
+				floodleft(false, R, true);
+				echo(0.25);
+			}
+			echo(1.5);
+
+			flashMainColourSwitch();
+			//fprintf(stdout, "Switching colours in the main and flashing\n");
+			//for(i=0, timing=-1; i<4; ++i, timing=0.5)
+			//{
+			//	setMain(R);
+			//	flashMain(timing, 1);
+			//	setMain(G);
+			//	flashMain(timing, 1);
+			//	if(i<4)
+			//	{
+			//		setMain(B);
+			//		flashMain(timing, 1);
+			//	}
+			//}
+
+			fprintf(stdout, "Flood Right\n");
+			for(i=0; i<60; ++i)
+			{
+				floodright(false, R, true);
+				echo(0.25);
+			}
+			echo(1.5);
+
+			fprintf(stdout, "Flash All\n");
+			flashAll(1, 4);
+			flashAll(0.5, 4);
+
+			fprintf(stdout, "Set All RGB\n");
+			for(i=0; i<10; ++i)
+			{
+				setAll(R);
+				echo(-1);
+
+				setAll(G);
+				echo(-1);
+
+				setAll(B);
+				echo(-1);
+			}
+
+			fprintf(stdout, "Rotate and Lift\n");
+			rotate(1, true);
+			lift(true, true);
+			echo(-1);
+			for(i=0; i<30; ++i)
+			{
+				rotate(5, true);
+				lift(false, true);
+				echo(-1);
+			}
+
+			fprintf(stdout, "Flood Right\n");
+			setAll(G);
+			floodright(true, B, true);
+			floodlift(true, R, true, false);
+			echo(-1);
+			for(i=0; i<30; ++i)
+			{
+				floodright(false, B, true);
+				floodlift(false, R, true, false);
+				echo(-1);			
+			}
+
+			fprintf(stdout, "Set All RGB\n");
+			for(i=0; i<5; ++i)
+			{
+				setAll(R);
+				echo(-1);
+				setAll(G);
+				echo(-1);
+				setAll(B);
+				echo(-1);
+			}
+
+			fprintf(stdout, "\n\nRepeating Over\n\n");
+			setAll(0);
+			echo(-1);			
 		}
 
 	}
@@ -378,40 +612,66 @@ int main(int argc, char **argv)
 		{
 			switch(mode)
 			{
-				case 1: 
-				fprintf(stdout, "Left\n");
+				case 0: 
+				fprintf(stdout, "Flood Left\n");
 				floodleft(init, colour, autoSwitch);
-				echo();
+				break;
+
+				case 1: 
+				fprintf(stdout, "Flood Left\n");
+				floodleft(init, colour, autoSwitch);
 				break;
 
 				case 2: 
-				fprintf(stdout, "Left\n");
+				fprintf(stdout, "Flood Left\n");
 				floodright(init, colour, autoSwitch);
-				echo();
 				break;
 
-				case 3:
-				fprintf(stdout, "Up\n");
-				lift(init, true);
-				echo();
+				case 3: 
+				fprintf(stdout, "Flood Up\n");
+				floodlift(init, colour, autoSwitch, true);
 				break;
 
-				case 4:
-				fprintf(stdout, "Down\n");
-				lift(init, false);
-				echo();
+				case 4: 
+				fprintf(stdout, "Flood Down\n");
+				floodlift(init, colour, autoSwitch, false);
 				break;
 
 				case 5:
+				fprintf(stdout, "Up\n");
+				lift(init, true);
+				break;
+
+				case 6:
+				fprintf(stdout, "Down\n");
+				lift(init, false);
+				break;
+
+				case 7:
 				fprintf(stdout, "Rotate Right with two colours\n");
 				rotate(2, true);
+				break;
+
+				case 8:
+				setAll(R);
+				echo(-1);
+				flashChildren(-1, 5);
+				break;
+
+				case 9:
+				setAll(G);
+				echo(-1);
+				flashMain(-1, 5);
 				break;
 
 				default:
 				break;
 			}
-
+			echo(-1);
 			init = false;
+
+			if(mode == 0)
+				break;
 		}
 	}
 
